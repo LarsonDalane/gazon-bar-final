@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gazon Bar | Boissons en gros</title>
+<meta name="theme-color" content="#0F3B2E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bottle: #0F3B2E; --deep: #0A261E; --amber: #E3A72F; --paper: #EDF1EC;
+    --ink: #14201B; --muted: #5B6B63; --line: #CBD6CF; --red: #B3372B;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); }
+  body { font-family: 'Barlow', system-ui, sans-serif; color: var(--ink); }
+  .disp { font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif; }
+  button { font-family: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  input[type=text], input[type=tel], input[type=search], input[type=password], input[type=number] {
+    width: 100%; padding: 14px; font-size: 16px; border: 2px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink);
+  }
+  label.f { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  .extrude { text-shadow: 1px 1px 0 #B98313, 2px 2px 0 #B98313, 3px 3px 0 #A5740F, 4px 4px 0 #A5740F, 5px 5px 0 #8F640C, 6px 6px 0 #8F640C, 7px 9px 14px rgba(0,0,0,.45); }
+  .btn3d { box-shadow: 0 5px 0 rgba(0,0,0,.35), 0 10px 18px rgba(0,0,0,.22); transition: transform .08s, box-shadow .08s; border: 0; border-radius: 4px; font-weight: 700; }
+  .btn3d:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.35), 0 3px 6px rgba(0,0,0,.2); }
+  .btn3d:disabled { opacity: .55; }
+  .row { display: grid; grid-template-columns: 6px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); background: #fff; box-shadow: 0 3px 0 var(--line); position: relative; }
+  .row.on { background: #FFF7E3; box-shadow: 0 3px 0 var(--amber); }
+  .row.out { background: #F1F1EE; }
+  .row.out .nm { color: var(--muted); text-decoration: line-through; }
+  .step { display: flex; align-items: center; border: 2px solid var(--ink); border-radius: 4px; overflow: hidden; background: #fff; box-shadow: 0 3px 0 var(--ink); }
+  .step button { width: 42px; height: 42px; border: 0; background: transparent; font-size: 22px; font-weight: 700; color: var(--ink); }
+  .step button:active { background: var(--amber); }
+  .step button:disabled { opacity: .3; }
+  .step span { min-width: 34px; text-align: center; font-weight: 700; font-size: 17px; }
+  .arow { padding: 12px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  .tabs { display: flex; background: var(--deep); }
+  .tabs button { flex: 1; padding: 13px 6px; border: 0; background: transparent; color: #BFD3C8; font-weight: 700; font-size: 15px; border-bottom: 4px solid transparent; }
+  .tabs button.on { color: #fff; border-bottom-color: var(--amber); }
+  .badge { background: var(--amber); color: var(--deep); border-radius: 999px; padding: 1px 8px; margin-left: 6px; font-size: 13px; }
+  .small-btn { background: #fff; border: 2px solid var(--ink); color: var(--ink); border-radius: 4px; padding: 9px 12px; font-weight: 700; font-size: 14px; }
+  .small-btn.green { background: #1F6B4F; border-color: #1F6B4F; color: #fff; }
+  .small-btn.red { border-color: var(--red); color: var(--red); }
+  .err { color: var(--red); font-weight: 600; margin: 14px 0 0; }
+  @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .22s ease-out; } }
+  @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback } = React;
+
+// ---------- Configuration ----------
+const SUPABASE_URL = "https://mnvbpstgazinafzknigh.supabase.co";
+const SUPABASE_KEY = "sb_publishable_iRetlFoIcVxjGuqfxpS9Rw_xJfk6NcV"; // clé publique : peut rester dans le site
+const WHATSAPP_NUMBER = "237671568444";
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const GROUPS = [
+  { key: "brasseries", label: "Brasseries", stripe: "#1F6B4F" },
+  { key: "guinness", label: "Guinness", stripe: "#1C1411" },
+];
+
+const fmt = (n) => Number(n).toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ") + " FCFA";
+
+// Le numéro de téléphone sert d'identifiant : 237 + 9 chiffres
+const normPhone = (v) => {
+  const d = String(v || "").replace(/\D/g, "");
+  return d.length >= 9 ? "237" + d.slice(-9) : null;
+};
+const toEmail = (id) => {
+  const s = String(id || "").trim();
+  if (s.includes("@")) return s.toLowerCase();
+  const p = normPhone(s);
+  return p ? p + "@gazonbar.app" : null;
+};
+const niceError = (e) => {
+  const m = (e && e.message) || "Une erreur est survenue.";
+  if (/invalid login/i.test(m)) return "Téléphone ou mot de passe incorrect.";
+  if (/already registered|already been registered/i.test(m)) return "Ce numéro a déjà un compte. Connecte-toi.";
+  if (/password/i.test(m) && /6/.test(m)) return "Le mot de passe doit avoir au moins 6 caractères.";
+  if (/failed to fetch|network/i.test(m)) return "Pas de connexion internet. Réessaie.";
+  return m;
+};
+
+// ---------- Écrans ----------
+function Splash() {
+  return (
+    <div style={{ background: "var(--bottle)", color: "#fff", minHeight: "100vh", display: "grid", placeItems: "center" }}>
+      <div className="disp extrude" style={{ fontSize: 56, fontWeight: 800 }}>GAZON BAR</div>
+    </div>
+  );
+}
+
+function Auth() {
+  const [mode, setMode] = useState("login");
+  const [f, setF] = useState({ name: "", business: "", phone: "", city: "", password: "", adult: false });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+
+  const submit = async () => {
+    setError("");
+    const email = toEmail(f.phone);
+    if (!email) return setError("Entre un numéro de téléphone valide (9 chiffres).");
+    if (f.password.length < 6) return setError("Le mot de passe doit avoir au moins 6 caractères.");
+    setBusy(true);
+    try {
+      if (mode === "login") {
+        const { error } = await sb.auth.signInWithPassword({ email, password: f.password });
+        if (error) throw error;
+      } else {
+        if (!f.name.trim() || !f.business.trim()) throw new Error("Renseigne ton nom et ton établissement.");
+        if (!f.adult) throw new Error("L'accès est réservé aux personnes de 18 ans et plus.");
+        const { data, error } = await sb.auth.signUp({
+          email,
+          password: f.password,
+          options: { data: { name: f.name.trim(), business: f.business.trim(), phone: normPhone(f.phone), city: f.city.trim() } },
+        });
+        if (error) throw error;
+        if (!data.session) throw new Error("Compte créé. Dans Supabase, désactive « Confirm email » (Authentication > Providers > Email), puis connecte-toi.");
+      }
+    } catch (e) {
+      setError(niceError(e));
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div>
+      <header style={{ background: "var(--bottle)", color: "#fff", padding: "40px 22px 34px" }}>
+        <div className="disp extrude" style={{ fontSize: 66, fontWeight: 800, lineHeight: 0.9, letterSpacing: ".01em" }}>GAZON BAR</div>
+        <div className="disp" style={{ fontSize: 26, fontWeight: 600, color: "var(--amber)", marginTop: 8 }}>Boissons en gros, au casier</div>
+        <p style={{ maxWidth: 440, margin: "14px 0 0", lineHeight: 1.5, color: "#D5E4DC" }}>
+          Connecte-toi pour voir les prix de gros et commander directement par WhatsApp.
+        </p>
+      </header>
+
+      <main style={{ padding: "8px 22px 40px", maxWidth: 520 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button className={"small-btn" + (mode === "login" ? " green" : "")} onClick={() => { setMode("login"); setError(""); }}>Se connecter</button>
+          <button className={"small-btn" + (mode === "signup" ? " green" : "")} onClick={() => { setMode("signup"); setError(""); }}>Créer un compte</button>
+        </div>
+
+        {mode === "signup" && (
+          <>
+            <label className="f" htmlFor="n">Ton nom</label>
+            <input id="n" type="text" value={f.name} onChange={set("name")} />
+            <label className="f" htmlFor="b">Nom de ton établissement</label>
+            <input id="b" type="text" value={f.business} onChange={set("business")} />
+            <label className="f" htmlFor="c">Ville ou quartier</label>
+            <input id="c" type="text" value={f.city} onChange={set("city")} />
+          </>
+        )}
+
+        <label className="f" htmlFor="p">Téléphone (WhatsApp)</label>
+        <input id="p" type="tel" inputMode="tel" value={f.phone} onChange={set("phone")} />
+        <label className="f" htmlFor="w">Mot de passe (6 caractères minimum)</label>
+        <input id="w" type="password" value={f.password} onChange={set("password")} onKeyDown={(e) => e.key === "Enter" && submit()} />
+
+        {mode === "signup" && (
+          <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 20, fontSize: 15, lineHeight: 1.4 }}>
+            <input type="checkbox" checked={f.adult} onChange={set("adult")} style={{ width: 22, height: 22, marginTop: 1, accentColor: "var(--bottle)" }} />
+            Je confirme avoir 18 ans ou plus. La vente d'alcool est interdite aux mineurs.
+          </label>
+        )}
+
+        {error && <p role="alert" className="err">{error}</p>}
+
+        <button className="btn3d" disabled={busy} onClick={submit}
+          style={{ marginTop: 22, width: "100%", padding: 16, fontSize: 18, background: "var(--amber)", color: "var(--deep)" }}>
+          {busy ? "Un instant..." : mode === "login" ? "Se connecter" : "Créer mon compte"}
+        </button>
+        {mode === "signup" && (
+          <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 12, lineHeight: 1.4 }}>
+            Après l'inscription, Gazon Bar valide ton compte avant que tu voies les prix.
+          </p>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Waiting({ profile, rejected, onRefresh }) {
+  return (
+    <div>
+      <header style={{ background: "var(--bottle)", color: "#fff", padding: "40px 22px 30px" }}>
+        <div className="disp extrude" style={{ fontSize: 56, fontWeight: 800, lineHeight: 0.9 }}>GAZON BAR</div>
+      </header>
+      <main style={{ padding: "22px", maxWidth: 520 }}>
+        <h1 className="disp" style={{ fontSize: 32, margin: "0 0 10px" }}>
+          {rejected ? "Compte non accepté" : "Compte en attente de validation"}
+        </h1>
+        <p style={{ lineHeight: 1.5 }}>
+          {rejected
+            ? "Gazon Bar n'a pas accepté cette demande. Contacte-nous sur WhatsApp si tu penses que c'est une erreur."
+            : `Merci ${profile.name || ""}. Gazon Bar va vérifier ta demande, puis tu verras les prix et pourras commander. Reviens ici dans un moment.`}
+        </p>
+        {!rejected && (
+          <button className="btn3d" onClick={onRefresh} style={{ marginTop: 10, width: "100%", padding: 16, fontSize: 17, background: "var(--amber)", color: "var(--deep)" }}>
+            Vérifier si mon compte est validé
+          </button>
+        )}
+        <a className="small-btn" href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noreferrer"
+          style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 14, padding: 14 }}>
+          Écrire à Gazon Bar sur WhatsApp
+        </a>
+        <button onClick={() => sb.auth.signOut()} style={{ background: "none", border: 0, marginTop: 22, color: "var(--muted)", textDecoration: "underline", fontSize: 15 }}>
+          Se déconnecter
+        </button>
+      </main>
+    </div>
+  );
+}
+
+// ---------- Catalogue client ----------
+function Catalog({ profile }) {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [qty, setQty] = useState({});
+  const [query, setQuery] = useState("");
+  const [cartOpen, setCartOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(null);
+
+  const load = useCallback(async () => {
+    const { data, error } = await sb.from("products").select("*").order("sort");
+    if (!error) setProducts(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, [load]);
+
+  const setQ = (id, v, max) => setQty((q) => ({ ...q, [id]: Math.max(0, Math.min(max, v)) }));
+
+  const lines = useMemo(
+    () => products.filter((p) => p.stock > 0 && (qty[p.id] || 0) > 0).map((p) => ({ ...p, q: Math.min(qty[p.id], p.stock) })),
+    [qty, products]
+  );
+  const total = lines.reduce((s, l) => s + l.q * l.price, 0);
+  const count = lines.reduce((s, l) => s + l.q, 0);
+
+  const send = async () => {
+    setError("");
+    setBusy(true);
+    const { data, error } = await sb.rpc("place_order", { items: lines.map((l) => ({ id: l.id, q: l.q })) });
+    setBusy(false);
+    if (error) {
+      setError(niceError(error));
+      load();
+      return;
+    }
+    const rows = data.items.map((i) => `• ${i.name} : ${i.q} casier(s) × ${fmt(i.price)} = ${fmt(i.q * i.price)}`);
+    const msg = [
+      `Bonjour Gazon Bar, voici ma commande n°${data.id} :`,
+      "",
+      ...rows,
+      "",
+      `Total : ${fmt(data.total)}`,
+      "",
+      `Client : ${profile.name} (${profile.business})`,
+      `Tél : ${profile.phone}${profile.city ? " — " + profile.city : ""}`,
+    ].join("\n");
+    setDone({ id: data.id, link: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}` });
+    setQty({});
+    setCartOpen(false);
+    load();
+  };
+
+  const q = query.trim().toLowerCase();
+  const visible = products.filter((p) => p.name.toLowerCase().includes(q));
+
+  return (
+    <div style={{ paddingBottom: 100 }}>
+      <header style={{ background: "var(--bottle)", color: "#fff", padding: "18px 18px 16px", position: "sticky", top: 0, zIndex: 5 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <div className="disp" style={{ fontSize: 34, fontWeight: 800, lineHeight: 1 }}>GAZON BAR</div>
+          <button onClick={() => sb.auth.signOut()} style={{ background: "none", border: 0, color: "#BFD3C8", fontSize: 13, textDecoration: "underline" }}>
+            {profile.business} · Quitter
+          </button>
+        </div>
+        <input type="search" placeholder="Chercher un produit" aria-label="Chercher un produit" value={query} onChange={(e) => setQuery(e.target.value)} style={{ marginTop: 12 }} />
+      </header>
+
+      <main>
+        <p style={{ margin: 0, padding: "12px 18px", fontSize: 14, color: "var(--muted)" }}>Tous les prix sont par casier.</p>
+        {loading && <p style={{ padding: 18 }}>Chargement des produits...</p>}
+
+        {GROUPS.map((g) => {
+          const items = visible.filter((p) => p.grp === g.key);
+          if (!items.length) return null;
+          return (
+            <section key={g.key}>
+              <h2 className="disp" style={{ margin: 0, padding: "14px 18px 8px", fontSize: 28, fontWeight: 700 }}>{g.label}</h2>
+              {items.map((p) => {
+                const n = Math.min(qty[p.id] || 0, p.stock);
+                return (
+                  <div key={p.id} className={"row" + (p.stock <= 0 ? " out" : n ? " on" : "")}>
+                    <div style={{ background: g.stripe, alignSelf: "stretch" }} />
+                    <div>
+                      <div className="nm" style={{ fontWeight: 600, fontSize: 17 }}>{p.name}</div>
+                      <div style={{ color: p.stock > 0 ? "var(--muted)" : "var(--red)", fontSize: 15, marginTop: 2, fontWeight: p.stock > 0 ? 400 : 600 }}>
+                        {p.stock > 0 ? fmt(p.price) : "En rupture de stock"}
+                      </div>
+                      {p.stock > 0 && (
+                        <div style={{ fontSize: 13, marginTop: 2, color: p.stock <= 5 ? "#B7791F" : "var(--muted)", fontWeight: p.stock <= 5 ? 600 : 400 }}>
+                          {p.stock <= 5 ? `Plus que ${p.stock} casier${p.stock > 1 ? "s" : ""}` : `${p.stock} casiers en stock`}
+                        </div>
+                      )}
+                    </div>
+                    {p.stock > 0 && (
+                      <div className="step">
+                        <button aria-label={`Retirer un casier de ${p.name}`} onClick={() => setQ(p.id, n - 1, p.stock)}>−</button>
+                        <span aria-live="polite">{n}</span>
+                        <button aria-label={`Ajouter un casier de ${p.name}`} disabled={n >= p.stock} onClick={() => setQ(p.id, n + 1, p.stock)}>+</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          );
+        })}
+        {!loading && !visible.length && <p style={{ padding: 24 }}>Aucun produit ne correspond à « {query} ».</p>}
+      </main>
+
+      {count > 0 && !cartOpen && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, padding: 12, background: "var(--deep)", zIndex: 10 }}>
+          <button className="btn3d" onClick={() => setCartOpen(true)}
+            style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: "var(--amber)", color: "var(--deep)", fontSize: 17 }}>
+            <span>Voir ma commande ({count} casier{count > 1 ? "s" : ""})</span>
+            <span>{fmt(total)}</span>
+          </button>
+        </div>
+      )}
+
+      {cartOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,38,30,.6)", zIndex: 20, display: "flex", alignItems: "flex-end" }} onClick={() => setCartOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: "100%", maxHeight: "85vh", overflow: "auto", borderRadius: "10px 10px 0 0", padding: "18px 18px 22px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 className="disp" style={{ margin: 0, fontSize: 30 }}>Ma commande</h2>
+              <button onClick={() => setCartOpen(false)} style={{ border: 0, background: "none", fontSize: 16, fontWeight: 600, color: "var(--muted)" }}>Fermer</button>
+            </div>
+            {lines.map((l) => (
+              <div key={l.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{l.name}</div>
+                  <div style={{ color: "var(--muted)", fontSize: 14 }}>{l.q} × {fmt(l.price)}</div>
+                </div>
+                <div style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(l.q * l.price)}</div>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "16px 0 4px", fontSize: 20, fontWeight: 700 }}>
+              <span>Total</span><span>{fmt(total)}</span>
+            </div>
+            {error && <p role="alert" className="err">{error}</p>}
+            <button className="btn3d" disabled={busy} onClick={send} style={{ marginTop: 14, width: "100%", padding: 16, fontSize: 18, background: "#1FA855", color: "#fff" }}>
+              {busy ? "Envoi en cours..." : "Valider la commande"}
+            </button>
+            <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.4, marginTop: 10 }}>
+              Les casiers sont réservés dès la validation. Tu enverras ensuite le détail sur WhatsApp.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {done && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,38,30,.7)", zIndex: 30, display: "grid", placeItems: "center", padding: 20 }}>
+          <div className="sheet" style={{ background: "#fff", borderRadius: 10, padding: 22, maxWidth: 420, width: "100%" }}>
+            <h2 className="disp" style={{ margin: "0 0 8px", fontSize: 30 }}>Commande n°{done.id} enregistrée</h2>
+            <p style={{ lineHeight: 1.5, margin: "0 0 16px" }}>Dernière étape : envoie le détail à Gazon Bar sur WhatsApp pour confirmer la livraison et le paiement.</p>
+            <a className="btn3d" href={done.link} target="_blank" rel="noreferrer"
+              style={{ display: "block", textAlign: "center", textDecoration: "none", padding: 16, fontSize: 18, background: "#1FA855", color: "#fff" }}>
+              Ouvrir WhatsApp
+            </a>
+            <button onClick={() => setDone(null)} style={{ marginTop: 16, background: "none", border: 0, color: "var(--muted)", textDecoration: "underline", fontSize: 15 }}>
+              Retour au catalogue
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Espace gérant ----------
+function ProductAdminRow({ p, onSaved }) {
+  const [price, setPrice] = useState(String(p.price));
+  const [stock, setStock] = useState(String(p.stock));
+  const [msg, setMsg] = useState("");
+  useEffect(() => { setPrice(String(p.price)); setStock(String(p.stock)); }, [p.price, p.stock]);
+  const dirty = Number(price) !== p.price || Number(stock) !== p.stock;
+
+  const save = async () => {
+    const pr = Math.max(0, parseInt(price || "0", 10));
+    const st = Math.max(0, parseInt(stock || "0", 10));
+    const { error } = await sb.from("products").update({ price: pr, stock: st }).eq("id", p.id);
+    setMsg(error ? "Erreur : " + error.message : "Enregistré");
+    if (!error) onSaved();
+    setTimeout(() => setMsg(""), 2000);
+  };
+
+  const state = p.stock <= 0 ? ["En rupture", "var(--red)"] : p.stock <= 5 ? ["Stock bas", "#B7791F"] : ["En stock", "#1F6B4F"];
+  return (
+    <div className="arow">
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ fontWeight: 600, fontSize: 17 }}>{p.name}</div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: state[1] }}>{state[0]}</div>
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <label style={{ fontSize: 13, color: "var(--muted)", flex: "1 1 120px" }}>Prix au casier (FCFA)
+          <input type="number" inputMode="numeric" min="0" value={price} onChange={(e) => setPrice(e.target.value)} />
+        </label>
+        <label style={{ fontSize: 13, color: "var(--muted)", flex: "1 1 90px" }}>Stock (casiers)
+          <input type="number" inputMode="numeric" min="0" value={stock} onChange={(e) => setStock(e.target.value)} />
+        </label>
+        <button className="small-btn" onClick={() => setStock(String((parseInt(stock || "0", 10) || 0) + 10))}>+ 10</button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10, minHeight: 38 }}>
+        {dirty && <button className="small-btn green" onClick={save}>Enregistrer</button>}
+        {msg && <span style={{ fontSize: 14, fontWeight: 600, color: "var(--muted)" }}>{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+function Admin({ profile }) {
+  const [tab, setTab] = useState("orders");
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [filter, setFilter] = useState("");
+  const [error, setError] = useState("");
+
+  const loadProducts = useCallback(async () => {
+    const { data } = await sb.from("products").select("*").order("sort");
+    setProducts(data || []);
+  }, []);
+  const loadOrders = useCallback(async () => {
+    const { data } = await sb.from("orders").select("*, profiles(name, business, phone)").order("created_at", { ascending: false }).limit(100);
+    setOrders(data || []);
+  }, []);
+  const loadClients = useCallback(async () => {
+    const { data } = await sb.from("profiles").select("*").eq("role", "client").order("created_at", { ascending: false });
+    setClients(data || []);
+  }, []);
+  const loadAll = useCallback(() => { loadProducts(); loadOrders(); loadClients(); }, [loadProducts, loadOrders, loadClients]);
+
+  useEffect(() => {
+    loadAll();
+    window.addEventListener("focus", loadAll);
+    return () => window.removeEventListener("focus", loadAll);
+  }, [loadAll]);
+
+  const cancel = async (id) => {
+    if (!window.confirm("Annuler cette commande et remettre les casiers en stock ?")) return;
+    const { error } = await sb.rpc("cancel_order", { order_id: id });
+    if (error) setError(error.message); else { setError(""); loadOrders(); loadProducts(); }
+  };
+  const setStatus = async (id, status) => {
+    const { error } = await sb.from("profiles").update({ status }).eq("id", id);
+    if (error) setError(error.message); else { setError(""); loadClients(); }
+  };
+
+  const pending = clients.filter((c) => c.status === "pending").length;
+  const outCount = products.filter((p) => p.stock <= 0).length;
+  const fq = filter.trim().toLowerCase();
+  const when = (d) => new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const statusLabel = { pending: "En attente", approved: "Accepté", rejected: "Refusé" };
+
+  return (
+    <div>
+      <header style={{ background: "var(--deep)", color: "#fff", padding: "18px 16px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div className="disp" style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>Espace gérant</div>
+            <div style={{ fontSize: 13, color: "#BFD3C8", marginTop: 4 }}>
+              {outCount === 0 ? "Tous les produits sont disponibles" : `${outCount} produit${outCount > 1 ? "s" : ""} en rupture`}
+            </div>
+          </div>
+          <button className="btn3d" onClick={() => sb.auth.signOut()} style={{ background: "var(--amber)", color: "var(--deep)", padding: "10px 14px", fontSize: 15 }}>Quitter</button>
+        </div>
+      </header>
+      <div className="tabs" style={{ position: "sticky", top: 0, zIndex: 5 }}>
+        <button className={tab === "orders" ? "on" : ""} onClick={() => setTab("orders")}>Commandes</button>
+        <button className={tab === "clients" ? "on" : ""} onClick={() => setTab("clients")}>Clients{pending > 0 && <span className="badge">{pending}</span>}</button>
+        <button className={tab === "products" ? "on" : ""} onClick={() => setTab("products")}>Produits</button>
+      </div>
+      {error && <p role="alert" className="err" style={{ padding: "0 16px" }}>{error}</p>}
+
+      {tab === "orders" && (
+        <section>
+          {orders.length === 0 && <p style={{ padding: 18, color: "var(--muted)" }}>Aucune commande pour le moment.</p>}
+          {orders.map((o) => (
+            <div key={o.id} className="arow" style={{ background: o.status === "cancelled" ? "#F1F1EE" : "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 700 }}>n°{o.id} · {o.profiles?.business}</div>
+                <div style={{ color: "var(--muted)", fontSize: 14 }}>{when(o.created_at)}</div>
+              </div>
+              <div style={{ fontSize: 14, color: "var(--muted)" }}>{o.profiles?.name} · {o.profiles?.phone}</div>
+              <div style={{ fontSize: 15, marginTop: 6, lineHeight: 1.4 }}>{o.items.map((i) => `${i.name} ×${i.q}`).join(", ")}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, gap: 10 }}>
+                <div style={{ fontWeight: 700 }}>{fmt(o.total)}</div>
+                {o.status === "pending" ? (
+                  <button className="small-btn red" onClick={() => cancel(o.id)}>Annuler et remettre en stock</button>
+                ) : (
+                  <span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 14 }}>Commande annulée</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {tab === "clients" && (
+        <section>
+          {clients.length === 0 && <p style={{ padding: 18, color: "var(--muted)" }}>Aucun client inscrit pour le moment.</p>}
+          {clients.map((c) => (
+            <div key={c.id} className="arow">
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 700 }}>{c.business}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: c.status === "approved" ? "#1F6B4F" : c.status === "rejected" ? "var(--red)" : "#B7791F" }}>{statusLabel[c.status]}</div>
+              </div>
+              <div style={{ fontSize: 14, color: "var(--muted)" }}>{c.name} · {c.phone}{c.city ? " · " + c.city : ""}</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                {c.status !== "approved" && <button className="small-btn green" onClick={() => setStatus(c.id, "approved")}>Accepter</button>}
+                {c.status !== "rejected" && <button className="small-btn red" onClick={() => setStatus(c.id, "rejected")}>{c.status === "approved" ? "Suspendre" : "Refuser"}</button>}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {tab === "products" && (
+        <section>
+          <div style={{ padding: "12px 16px" }}>
+            <input type="search" placeholder="Chercher un produit" aria-label="Chercher un produit" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <p style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.4, margin: "10px 0 0" }}>
+              Change le prix ou le stock, puis touche « Enregistrer ». Chaque commande retire automatiquement les casiers du stock.
+            </p>
+          </div>
+          {GROUPS.map((g) => {
+            const items = products.filter((p) => p.grp === g.key && p.name.toLowerCase().includes(fq));
+            if (!items.length) return null;
+            return (
+              <div key={g.key}>
+                <h2 className="disp" style={{ margin: 0, padding: "10px 16px 8px", fontSize: 26, fontWeight: 700 }}>{g.label}</h2>
+                {items.map((p) => <ProductAdminRow key={p.id} p={p} onSaved={loadProducts} />)}
+              </div>
+            );
+          })}
+          <div style={{ height: 40 }} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+// ---------- Application ----------
+function App() {
+  const [session, setSession] = useState(undefined);
+  const [profile, setProfile] = useState(undefined);
+  const uid = session ? session.user.id : null;
+
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data } = sb.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    if (!uid) { setProfile(null); return; }
+    const { data } = await sb.from("profiles").select("*").eq("id", uid).maybeSingle();
+    setProfile(data || null);
+  }, [uid]);
+
+  useEffect(() => {
+    if (session === undefined) return;
+    if (uid) setProfile(undefined);
+    loadProfile();
+  }, [session === undefined, uid]);
+
+  if (session === undefined) return <Splash />;
+  if (!session) return <Auth />;
+  if (profile === undefined) return <Splash />;
+  if (!profile) {
+    return (
+      <div style={{ padding: 24 }}>
+        <p>Profil introuvable. Déconnecte-toi puis reconnecte-toi.</p>
+        <button className="small-btn" onClick={() => sb.auth.signOut()}>Se déconnecter</button>
+      </div>
+    );
+  }
+  if (profile.role === "admin") return <Admin profile={profile} />;
+  if (profile.status === "approved") return <Catalog profile={profile} />;
+  return <Waiting profile={profile} rejected={profile.status === "rejected"} onRefresh={loadProfile} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
